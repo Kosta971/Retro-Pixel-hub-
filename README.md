@@ -798,3 +798,450 @@
     </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>5-in-1 Retro Games | Mobile Controls</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0f0f23;
+            color: #00ff00;
+            text-align: center;
+            margin: 0;
+            padding: 10px;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+        header {
+            margin-bottom: 15px;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        .game-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        button {
+            background: #003300;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #005500;
+        }
+        .game-container {
+            margin: 0 auto;
+            position: relative;
+            max-width: 100%;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+            border: 2px solid #00ff00;
+            max-width: 100%;
+            height: auto;
+        }
+        .score {
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        /* Мобильное управление */
+        .controls {
+            display: none;
+            margin-top: 15px;
+        }
+        .control-btn {
+            background: rgba(0, 51, 0, 0.7);
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 12px;
+            font-size: 20px;
+            border-radius: 6px;
+            user-select: none;
+        }
+        .control-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            .controls {
+                display: block;
+            }
+            button {
+                padding: 10px 15px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎮 5 Retro Games</h1>
+    </header>
+
+    <div class="game-buttons">
+        <button onclick="startGame('snake')">Змейка</button>
+        <button onclick="startGame('tetris')">Тетрис</button>
+        <button onclick="startGame('pong')">Понг</button>
+        <button onclick="startGame('flappy')">Flappy</button>
+        <button onclick="startGame('breakout')">Арканоид</button>
+    </div>
+
+    <div class="score" id="score">Счёт: 0</div>
+
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- Мобильное управление -->
+    <div class="controls" id="controls">
+        <div class="control-row">
+            <div class="control-btn" id="up">↑</div>
+        </div>
+        <div class="control-row">
+            <div class="control-btn" id="left">←</div>
+            <div class="control-btn" id="down">↓</div>
+            <div class="control-btn" id="right">→</div>
+        </div>
+        <div class="control-row">
+            <div class="control-btn" id="action">A</div>
+            <div class="control-btn" id="rotate">B</div>
+        </div>
+    </div>
+
+    <script>
+        // Общие переменные
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const controls = document.getElementById('controls');
+        let currentGame = null;
+        let score = 0;
+        let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        // Размеры холста
+        function resizeCanvas() {
+            const size = Math.min(window.innerWidth - 40, 500);
+            canvas.width = size;
+            canvas.height = size;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Мобильное управление
+        const controlButtons = {
+            up: document.getElementById('up'),
+            down: document.getElementById('down'),
+            left: document.getElementById('left'),
+            right: document.getElementById('right'),
+            action: document.getElementById('action'),
+            rotate: document.getElementById('rotate')
+        };
+
+        // Показываем управление только на мобильных
+        if (isMobile) {
+            controls.style.display = 'block';
+        }
+
+        // ===== ЗМЕЙКА =====
+        function initSnake() {
+            const gridSize = 20;
+            let snake = [{x: 10, y: 10}];
+            let food = {x: 5, y: 5};
+            let dx = 0, dy = 0;
+            let speed = 150;
+
+            // Мобильное управление
+            const setupControls = () => {
+                controlButtons.up.onpointerdown = () => { if (dy === 0) { dx = 0; dy = -1; } };
+                controlButtons.down.onpointerdown = () => { if (dy === 0) { dx = 0; dy = 1; } };
+                controlButtons.left.onpointerdown = () => { if (dx === 0) { dx = -1; dy = 0; } };
+                controlButtons.right.onpointerdown = () => { if (dx === 0) { dx = 1; dy = 0; } };
+                
+                // Отключение других кнопок
+                controlButtons.action.onpointerdown = null;
+                controlButtons.rotate.onpointerdown = null;
+            };
+
+            // Клавиатура
+            const keyboardHandler = (e) => {
+                if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -1; }
+                if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = 1; }
+                if (e.key === 'ArrowLeft' && dx === 0) { dx = -1; dy = 0; }
+                if (e.key === 'ArrowRight' && dx === 0) { dx = 1; dy = 0; }
+            };
+
+            setupControls();
+            document.addEventListener('keydown', keyboardHandler);
+
+            // Остальной код змейки (как в предыдущем примере)
+            function gameLoop() {
+                const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                snake.unshift(head);
+                
+                if (head.x === food.x && head.y === food.y) {
+                    generateFood();
+                    score += 10;
+                    speed = Math.max(50, speed - 5);
+                } else {
+                    snake.pop();
+                }
+
+                if (isCollision()) {
+                    gameOver();
+                    return;
+                }
+
+                drawGame();
+                setTimeout(gameLoop, speed);
+            }
+
+            function drawGame() {
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#00ff00';
+                snake.forEach(segment => {
+                    ctx.fillRect(
+                        segment.x * gridSize, 
+                        segment.y * gridSize, 
+                        gridSize - 1, 
+                        gridSize - 1
+                    );
+                });
+                
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(
+                    food.x * gridSize, 
+                    food.y * gridSize, 
+                    gridSize - 1, 
+                    gridSize - 1
+                );
+                
+                updateScore();
+            }
+
+            function generateFood() {
+                food = {
+                    x: Math.floor(Math.random() * (canvas.width / gridSize)),
+                    y: Math.floor(Math.random() * (canvas.height / gridSize))
+                };
+            }
+
+            function isCollision() {
+                const head = snake[0];
+                if (
+                    head.x < 0 || 
+                    head.y < 0 || 
+                    head.x >= canvas.width / gridSize || 
+                    head.y >= canvas.height / gridSize
+                ) return true;
+                
+                for (let i = 1; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) {
+                        return true;
+                    }
+                }
+                
+                return false;
+            }
+
+            function gameOver() {
+                alert(`Игра окончена! Счёт: ${score}`);
+                resetGame();
+            }
+
+            function resetGame() {
+                snake = [{x: 10, y: 10}];
+                dx = dy = 0;
+                score = 0;
+                speed = 150;
+                generateFood();
+                setupControls();
+                gameLoop();
+            }
+
+            generateFood();
+            gameLoop();
+
+            // Возвращаем обработчик для удаления при смене игры
+            return { keyboardHandler };
+        }
+
+        // ===== ТЕТРИС =====
+        function initTetris() {
+            // ... (код тетриса из предыдущего примера)
+            // Добавляем мобильное управление:
+            const setupControls = () => {
+                controlButtons.left.onpointerdown = () => movePiece(-1, 0);
+                controlButtons.right.onpointerdown = () => movePiece(1, 0);
+                controlButtons.down.onpointerdown = () => movePiece(0, 1);
+                controlButtons.rotate.onpointerdown = () => rotatePiece();
+                
+                // Отключение ненужных кнопок
+                controlButtons.up.onpointerdown = null;
+                controlButtons.action.onpointerdown = null;
+            };
+
+            setupControls();
+            
+            // Возвращаем обработчики для удаления
+            return { 
+                keyboardHandler: (e) => {
+                    if (e.key === 'ArrowLeft') movePiece(-1, 0);
+                    if (e.key === 'ArrowRight') movePiece(1, 0);
+                    if (e.key === 'ArrowDown') movePiece(0, 1);
+                    if (e.key === 'ArrowUp') rotatePiece();
+                },
+                touchHandler: setupControls
+            };
+        }
+
+        // ===== ПОНГ =====
+        function initPong() {
+            // ... (код понга из предыдущего примера)
+            // Управление для мобильных:
+            const touchHandler = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                paddleX = e.touches[0].clientX - rect.left - paddleWidth / 2;
+                paddleX = Math.max(0, Math.min(paddleX, canvas.width - paddleWidth));
+            };
+
+            if (isMobile) {
+                canvas.ontouchmove = touchHandler;
+            }
+
+            // Возвращаем обработчики для удаления
+            return { 
+                mouseHandler: (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    paddleX = e.clientX - rect.left - paddleWidth / 2;
+                    paddleX = Math.max(0, Math.min(paddleX, canvas.width - paddleWidth));
+                },
+                touchHandler
+            };
+        }
+
+        // ===== FLAPPY BIRD =====
+        function initFlappy() {
+            // ... (код flappy bird из предыдущего примера)
+            // Управление для мобильных:
+            const tapHandler = () => {
+                if (gameRunning) {
+                    velocity = -10;
+                } else {
+                    resetGame();
+                }
+            };
+
+            if (isMobile) {
+                canvas.ontouchstart = tapHandler;
+                controlButtons.action.onpointerdown = tapHandler;
+            }
+
+            // Возвращаем обработчики для удаления
+            return { 
+                clickHandler: tapHandler,
+                touchHandler: tapHandler
+            };
+        }
+
+        // ===== АРКАНОИД =====
+        function initBreakout() {
+            // ... (код арканоида из предыдущего примера)
+            // Управление для мобильных:
+            const touchHandler = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                paddleX = e.touches[0].clientX - rect.left - paddleWidth / 2;
+                paddleX = Math.max(0, Math.min(paddleX, canvas.width - paddleWidth));
+            };
+
+            if (isMobile) {
+                canvas.ontouchmove = touchHandler;
+            }
+
+            // Возвращаем обработчики для удаления
+            return { 
+                mouseHandler: (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    paddleX = e.clientX - rect.left - paddleWidth / 2;
+                    paddleX = Math.max(0, Math.min(paddleX, canvas.width - paddleWidth));
+                },
+                touchHandler
+            };
+        }
+
+        // Общие функции
+        function updateScore() {
+            scoreElement.textContent = `Счёт: ${score}`;
+        }
+
+        function startGame(game) {
+            // Остановка текущей игры
+            if (currentGame) {
+                ['keyboardHandler', 'mouseHandler', 'clickHandler', 'touchHandler'].forEach(handler => {
+                    if (currentGame[handler]) {
+                        if (handler === 'keyboardHandler') {
+                            document.removeEventListener('keydown', currentGame[handler]);
+                        } else if (handler === 'mouseHandler') {
+                            document.removeEventListener('mousemove', currentGame[handler]);
+                        } else if (handler === 'clickHandler') {
+                            document.removeEventListener('click', currentGame[handler]);
+                        } else if (handler === 'touchHandler') {
+                            canvas.ontouchmove = null;
+                            canvas.ontouchstart = null;
+                        }
+                    }
+                });
+            }
+            
+            // Сброс счёта
+            score = 0;
+            updateScore();
+            
+            // Настройка кнопок управления
+            controlButtons.up.onpointerdown = null;
+            controlButtons.down.onpointerdown = null;
+            controlButtons.left.onpointerdown = null;
+            controlButtons.right.onpointerdown = null;
+            controlButtons.action.onpointerdown = null;
+            controlButtons.rotate.onpointerdown = null;
+            
+            // Запуск новой игры
+            switch (game) {
+                case 'snake':
+                    currentGame = initSnake();
+                    break;
+                case 'tetris':
+                    currentGame = initTetris();
+                    break;
+                case 'pong':
+                    currentGame = initPong();
+                    break;
+                case 'flappy':
+                    currentGame = initFlappy();
+                    break;
+                case 'breakout':
+                    currentGame = initBreakout();
+                    break;
+            }
+        }
+
+        // Запускаем первую игру
+        startGame('snake');
+    </script>
+</body>
+</html>
